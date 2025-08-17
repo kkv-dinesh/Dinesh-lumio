@@ -1,0 +1,316 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AI Meeting Notes Summarizer</title>
+    <style>
+        /* Minimal and functional styling for a clean look. */
+        body {
+            font-family: -apple-system, BlinkMacMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+            background-color: #f0f4f8;
+            color: #334e68;
+            margin: 0;
+            padding: 2rem;
+            display: flex;
+            justify-content: center;
+            align-items: flex-start;
+            min-height: 100vh;
+        }
+
+        .app-container {
+            background-color: #fff;
+            padding: 2.5rem;
+            border-radius: 12px;
+            box-shadow: 0 10px 20px rgba(0, 0, 0, 0.05);
+            max-width: 800px;
+            width: 100%;
+        }
+
+        h1 {
+            text-align: center;
+            color: #102a43;
+            margin-bottom: 0.5rem;
+        }
+
+        p {
+            text-align: center;
+            font-size: 1rem;
+            color: #627d98;
+            margin-bottom: 2rem;
+        }
+
+        .section {
+            margin-bottom: 2rem;
+        }
+
+        label {
+            display: block;
+            font-weight: 600;
+            margin-bottom: 0.5rem;
+            color: #486581;
+        }
+
+        textarea {
+            width: 100%;
+            padding: 0.75rem;
+            border: 1px solid #d9e2ec;
+            border-radius: 8px;
+            font-size: 1rem;
+            min-height: 150px;
+            resize: vertical;
+            transition: border-color 0.3s;
+        }
+        
+        textarea:focus {
+            outline: none;
+            border-color: #48a6f8;
+        }
+
+        .button-group {
+            display: flex;
+            flex-wrap: wrap; /* Allow buttons to wrap on smaller screens */
+            gap: 1rem; /* Space between buttons */
+            justify-content: center;
+            align-items: center;
+            margin-top: 1rem;
+            position: relative;
+        }
+        
+        button {
+            padding: 0.75rem 1.5rem;
+            font-size: 1rem;
+            font-weight: 600;
+            border: none;
+            border-radius: 8px;
+            cursor: pointer;
+            transition: background-color 0.3s, transform 0.2s;
+            color: #fff;
+            background-color: #48a6f8;
+        }
+        
+        button:hover {
+            background-color: #3b8fe9;
+            transform: translateY(-2px);
+        }
+
+        button:disabled {
+            background-color: #a0aec0;
+            cursor: not-allowed;
+            transform: none;
+        }
+
+        .loading-spinner {
+            display: none;
+            width: 20px;
+            height: 20px;
+            border: 3px solid rgba(255, 255, 255, 0.3);
+            border-radius: 50%;
+            border-top-color: #fff;
+            animation: spin 1s ease-in-out infinite;
+            /* Position relative to button group */
+        }
+        
+        @keyframes spin {
+            to { transform: rotate(360deg); }
+        }
+
+        .share-section {
+            display: none;
+            margin-top: 1.5rem;
+            padding-top: 1.5rem;
+            border-top: 1px solid #d9e2ec;
+        }
+
+        .share-section input[type="email"] {
+            width: 100%;
+            padding: 0.75rem;
+            border: 1px solid #d9e2ec;
+            border-radius: 8px;
+            font-size: 1rem;
+        }
+
+        .message-box {
+            margin-top: 1rem;
+            padding: 1rem;
+            border-radius: 8px;
+            text-align: center;
+            font-weight: 600;
+        }
+
+        .message-box.success {
+            background-color: #e6ffed;
+            color: #276749;
+        }
+
+        .message-box.error {
+            background-color: #fff5f5;
+            color: #c53030;
+        }
+    </style>
+</head>
+<body>
+
+<div class="app-container">
+    <h1>AI Meeting Notes Summarizer</h1>
+    <p>Upload your text, provide a custom prompt, and get a structured, editable summary.</p>
+
+    <!-- Summarization section -->
+    <div class="section">
+        <label for="transcript">Meeting Transcript:</label>
+        <textarea id="transcript" placeholder="Paste your meeting notes or call transcript here..."></textarea>
+    </div>
+
+    <div class="section">
+        <label for="prompt">Custom Prompt:</label>
+        <textarea id="prompt" placeholder="e.g., 'Summarize in bullet points for executives' or 'Highlight only action items'"></textarea>
+    </div>
+
+    <div class="button-group">
+        <button id="generateBtn">Generate Summary</button>
+        <button id="extractActionsBtn">Extract Action Items ✨</button>
+        <button id="draftEmailBtn">Draft Follow-up Email ✨</button>
+    </div>
+
+    <!-- Summary display and editing section -->
+    <div class="section">
+        <label for="summary">Generated Output (Editable):</label>
+        <textarea id="summary" placeholder="Your AI-generated summary or draft will appear here..." disabled></textarea>
+    </div>
+
+    <!-- Share section -->
+    <div class="share-section" id="shareSection">
+        <label for="recipientEmail">Share via Email:</label>
+        <input type="email" id="recipientEmail" placeholder="Enter recipient email address">
+        <div class="button-group">
+            <button id="shareBtn">Share</button>
+        </div>
+    </div>
+    
+    <!-- Message box for user feedback -->
+    <div class="message-box" id="messageBox"></div>
+
+</div>
+
+<script>
+    // Frontend JavaScript logic
+    const transcriptTextarea = document.getElementById('transcript');
+    const promptTextarea = document.getElementById('prompt');
+    const summaryTextarea = document.getElementById('summary');
+    const generateBtn = document.getElementById('generateBtn');
+    const extractActionsBtn = document.getElementById('extractActionsBtn');
+    const draftEmailBtn = document.getElementById('draftEmailBtn');
+    const shareSection = document.getElementById('shareSection');
+    const recipientEmailInput = document.getElementById('recipientEmail');
+    const shareBtn = document.getElementById('shareBtn');
+    const messageBox = document.getElementById('messageBox');
+    
+    // The backend server URL. Change this if your server is on a different host/port.
+    const BACKEND_URL = 'http://localhost:3000';
+
+    // Event listeners for the new and existing buttons
+    generateBtn.addEventListener('click', () => handleSummarize());
+    extractActionsBtn.addEventListener('click', () => handleSummarize("Extract all action items from the following text and present them as a concise bulleted list."));
+    draftEmailBtn.addEventListener('click', () => handleSummarize("Draft a professional follow-up email based on the following meeting transcript. The email should be a concise recap of the main points."));
+    shareBtn.addEventListener('click', handleShare);
+
+    // Main function to handle the summarization request, now with a dynamic prompt
+    async function handleSummarize(overridePrompt = null) {
+        const transcript = transcriptTextarea.value;
+        const prompt = overridePrompt || promptTextarea.value;
+
+        if (!transcript || !prompt) {
+            showMessage('Please provide a transcript and a prompt.', 'error');
+            return;
+        }
+
+        // Show loading state on all buttons
+        setLoading(true);
+        summaryTextarea.disabled = true;
+        showMessage('');
+
+        try {
+            const response = await fetch(`${BACKEND_URL}/api/summarize`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ transcript, prompt })
+            });
+
+            const data = await response.json();
+
+            if (response.ok) {
+                summaryTextarea.value = data.summary;
+                summaryTextarea.disabled = false;
+                shareSection.style.display = 'block';
+                showMessage('Output generated successfully! You can now edit and share it.', 'success');
+            } else {
+                showMessage(`Error: ${data.error}`, 'error');
+            }
+        } catch (error) {
+            console.error('Error:', error);
+            showMessage('Failed to connect to the server. Please check your backend.', 'error');
+        } finally {
+            setLoading(false);
+        }
+    }
+
+    // Function to handle the share email request
+    async function handleShare() {
+        const recipientEmail = recipientEmailInput.value;
+        const summaryContent = summaryTextarea.value;
+
+        if (!recipientEmail || !summaryContent) {
+            showMessage('Please enter a recipient email and ensure the output is not empty.', 'error');
+            return;
+        }
+
+        shareBtn.disabled = true;
+        showMessage('Sending email...', 'success');
+
+        try {
+            const response = await fetch(`${BACKEND_URL}/api/share-summary`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ recipient_email: recipientEmail, summary_content: summaryContent })
+            });
+
+            const data = await response.json();
+
+            if (response.ok) {
+                showMessage(data.message, 'success');
+            } else {
+                showMessage(`Error: ${data.error}`, 'error');
+            }
+        } catch (error) {
+            console.error('Error:', error);
+            showMessage('Failed to send email. Please check your network and backend logs.', 'error');
+        } finally {
+            shareBtn.disabled = false;
+        }
+    }
+
+    // Utility function to manage the loading state for all buttons
+    function setLoading(isLoading) {
+        const buttons = [generateBtn, extractActionsBtn, draftEmailBtn];
+        buttons.forEach(btn => {
+            btn.disabled = isLoading;
+            if (isLoading) {
+                btn.style.opacity = '0.7';
+                btn.style.cursor = 'wait';
+            } else {
+                btn.style.opacity = '1';
+                btn.style.cursor = 'pointer';
+            }
+        });
+        // You could add a single shared spinner, but disabling buttons is simpler for this design.
+    }
+
+    // Utility function to display messages to the user.
+    function showMessage(message, type) {
+        messageBox.textContent = message;
+        messageBox.className = `message-box ${type}`;
+    }
+</script>
+
+</body>
+</html>
